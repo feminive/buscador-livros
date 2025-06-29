@@ -1,0 +1,25 @@
+{
+  "id": "buscador-;ivros",
+  "title": "Buscador de Livro",
+  "description": "Simple module to search Strapi content",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "11",
+    "verified": "13"
+  },
+  "authors": [
+    {
+      "name": "User"
+    }
+  ],
+  "scripts": [
+    "scripts/main.js"
+  ],
+  "styles": [
+    "styles/strapi-search.css"
+  ],
+  "languages": [],
+  "url": "",
+  "manifest": "",
+  "download": ""
+}
