@@ -1,11 +1,11 @@
 {
-  "id": "buscador-;ivros",
-  "title": "Buscador de Livro",
+  "id": "strapi-search",
+  "title": "Strapi Search",
   "description": "Simple module to search Strapi content",
   "version": "1.0.0",
   "compatibility": {
     "minimum": "11",
-    "verified": "13"
+    "verified": "12"
   },
   "authors": [
     {

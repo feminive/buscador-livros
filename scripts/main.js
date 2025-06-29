@@ -7,6 +7,19 @@ Hooks.once('init', () => {
 Hooks.once('ready', () => {
   console.log('Strapi Search | Ready');
   
+  // Register the /buscar chat command properly
+  if (game.chatCommands) {
+    game.chatCommands.register({
+      name: "buscar",
+      module: "strapi-search",
+      description: "Abrir busca de conteúdo Strapi",
+      icon: '<i class="fas fa-search"></i>',
+      callback: () => {
+        openSearchDialog();
+      }
+    });
+  }
+  
   // Add button to scene controls
   Hooks.on('getSceneControlButtons', (controls) => {
     controls.push({
@@ -26,40 +39,19 @@ Hooks.once('ready', () => {
     });
   });
 
-  // Add global button to show dialog to all players
-  ui.controls.addTool('strapi-search-global', {
-    name: 'strapi-search-global',
-    title: 'Show Strapi Search to All',
-    icon: 'fas fa-broadcast-tower',
-    onClick: () => {
-      // Emit socket event to show dialog to all connected users
-      game.socket.emit('module.strapi-search', {
-        type: 'showDialog'
-      });
-      // Also show to current user
+  // Fallback method using chat message hook for /buscar command
+  Hooks.on('chatMessage', (chatLog, message, chatData) => {
+    if (message.trim().toLowerCase() === '/buscar') {
       openSearchDialog();
-    },
-    button: true
+      return false; // Prevent the message from being sent to chat
+    }
+    return true; // Allow other messages to proceed normally
   });
 
   // Listen for socket events
   game.socket.on('module.strapi-search', (data) => {
     if (data.type === 'showDialog') {
       openSearchDialog();
-    }
-  });
-
-  // Register chat command /buscar
-  Hooks.on('chatMessage', (chatLog, message, chatData) => {
-    if (message.startsWith('/buscar')) {
-      // Prevent the message from being sent to chat
-      chatData.content = '';
-      
-      // Open the search dialog
-      openSearchDialog();
-      
-      // Return false to prevent the message from being processed further
-      return false;
     }
   });
 });
