@@ -82,6 +82,16 @@ function openSearchDialog() {
             </label>
           </div>
           
+          <div class="colleges-filter" id="colleges-filter" style="display: none;">
+            <div class="filter-title">Filtrar por Escola de Magia:</div>
+            <div class="college-toggles-container" id="college-toggles">
+              <div class="loading-colleges">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Carregando escolas...</span>
+              </div>
+            </div>
+          </div>
+          
           <div class="search-input-container">
             <input type="text" id="search-term" placeholder="Buscar conteúdo...">
             <i class="fas fa-search search-icon"></i>
@@ -107,9 +117,12 @@ function openSearchDialog() {
       const searchInput = html.find('#search-term');
       const typeToggles = html.find('.type-toggle');
       const resultsDiv = html.find('#search-results');
+      const collegesFilter = html.find('#colleges-filter');
+      const collegeTogglesContainer = html.find('#college-toggles');
       
       let searchTimeout;
       let currentResults = [];
+      let colleges = [];
       
       // Function to get selected types
       const getSelectedTypes = () => {
@@ -122,10 +135,75 @@ function openSearchDialog() {
         return selected;
       };
       
+      // Function to get selected colleges
+      const getSelectedColleges = () => {
+        const selected = [];
+        collegeTogglesContainer.find('.college-toggle input:checked').each(function() {
+          selected.push($(this).val());
+        });
+        return selected;
+      };
+      
+      // Function to load colleges from API
+      const loadColleges = async () => {
+        try {
+          const response = await fetch('https://api.rolandodados.com.br/api/colleges?populate=*');
+          const data = await response.json();
+          colleges = data.data || [];
+          
+          if (colleges.length > 0) {
+            let collegeTogglesHtml = '';
+            colleges.forEach(college => {
+              collegeTogglesHtml += `
+                <label class="type-toggle college-toggle" data-college="${college.id}">
+                  <input type="checkbox" value="${college.id}">
+                  <span>${college.attributes.name}</span>
+                </label>
+              `;
+            });
+            collegeTogglesContainer.html(collegeTogglesHtml);
+            
+            // Add event listeners to college toggles
+            collegeTogglesContainer.find('.college-toggle').on('click', function(e) {
+              e.preventDefault();
+              const checkbox = $(this).find('input');
+              const isChecked = checkbox.prop('checked');
+              
+              checkbox.prop('checked', !isChecked);
+              $(this).toggleClass('active', !isChecked);
+              
+              clearTimeout(searchTimeout);
+              searchTimeout = setTimeout(performSearch, 100);
+            });
+          } else {
+            collegeTogglesContainer.html('<span class="no-colleges">Nenhuma escola encontrada</span>');
+          }
+        } catch (error) {
+          console.error('Error loading colleges:', error);
+          collegeTogglesContainer.html('<span class="error-colleges">Erro ao carregar escolas</span>');
+        }
+      };
+      
+      // Function to show/hide colleges filter based on selected types
+      const updateCollegesFilterVisibility = () => {
+        const selectedTypes = getSelectedTypes();
+        const showCollegesFilter = selectedTypes.includes('spells');
+        
+        if (showCollegesFilter) {
+          collegesFilter.show();
+        } else {
+          collegesFilter.hide();
+          // Clear college selections when hiding
+          collegeTogglesContainer.find('.college-toggle').removeClass('active');
+          collegeTogglesContainer.find('.college-toggle input').prop('checked', false);
+        }
+      };
+      
       // Function to perform search
       const performSearch = async () => {
         const term = searchInput.val().trim();
         const selectedTypes = getSelectedTypes();
+        const selectedColleges = getSelectedColleges();
         
         if (selectedTypes.length === 0) {
           resultsDiv.html(`
@@ -148,10 +226,27 @@ function openSearchDialog() {
           // Fetch data from all selected types
           const promises = selectedTypes.map(async (type) => {
             let url;
+            let baseUrl = `https://api.rolandodados.com.br/api/${type}?populate=*`;
+            
+            // Build filters array
+            const filters = [];
+            
+            // Add name filter if search term exists
             if (term.length >= 2) {
-              url = `https://api.rolandodados.com.br/api/${type}?filters[name][$containsi]=${term}&populate=*`;
+              filters.push(`filters[name][$containsi]=${encodeURIComponent(term)}`);
+            }
+            
+            // Add college filter for spells if colleges are selected
+            if (type === 'spells' && selectedColleges.length > 0) {
+              const collegeIds = selectedColleges.join(',');
+              filters.push(`filters[colleges][id][$in]=${collegeIds}`);
+            }
+            
+            // Construct final URL
+            if (filters.length > 0) {
+              url = `${baseUrl}&${filters.join('&')}`;
             } else {
-              url = `https://api.rolandodados.com.br/api/${type}?populate=*`;
+              url = baseUrl;
             }
             
             const response = await fetch(url);
@@ -199,12 +294,18 @@ function openSearchDialog() {
         checkbox.prop('checked', !isChecked);
         $(this).toggleClass('active', !isChecked);
         
+        // Update colleges filter visibility
+        updateCollegesFilterVisibility();
+        
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(performSearch, 100);
       });
       
-      // Initial load
-      performSearch();
+      // Initialize
+      loadColleges().then(() => {
+        updateCollegesFilterVisibility();
+        performSearch();
+      });
     }
   }, {
     classes: ["strapi-search-dialog"],
@@ -231,6 +332,13 @@ function displayResults(results, container) {
     
     const typeLabel = typeLabels[contentType] || contentType;
     
+    // Get colleges for spells
+    let collegesInfo = '';
+    if (contentType === 'spells' && attrs.colleges && attrs.colleges.data && attrs.colleges.data.length > 0) {
+      const collegeNames = attrs.colleges.data.map(college => college.attributes.name).join(', ');
+      collegesInfo = `<div class="info-item"><span class="label">Escolas:</span> <span class="value">${collegeNames}</span></div>`;
+    }
+    
     content += `
       <div class="result-card" data-index="${index}">
         <div class="card-header">
@@ -241,6 +349,7 @@ function displayResults(results, container) {
           ${attrs.cost && attrs.cost !== 'N/A' ? `<div class="info-item"><span class="label">Custo:</span> <span class="value">${attrs.cost}</span></div>` : ''}
           ${attrs.dif ? `<div class="info-item"><span class="label">Dificuldade:</span> <span class="value">${attrs.dif}</span></div>` : ''}
           ${attrs.class ? `<div class="info-item"><span class="label">Classe:</span> <span class="value">${attrs.class}</span></div>` : ''}
+          ${collegesInfo}
         </div>
       </div>
     `;
@@ -260,6 +369,13 @@ function displayResults(results, container) {
 function showDetailedResult(item) {
   const attrs = item.attributes;
   
+  // Get colleges for spells
+  let collegesMetaItem = '';
+  if (item.contentType === 'spells' && attrs.colleges && attrs.colleges.data && attrs.colleges.data.length > 0) {
+    const collegeNames = attrs.colleges.data.map(college => college.attributes.name).join(', ');
+    collegesMetaItem = `<span class="meta-item">Escolas: ${collegeNames}</span>`;
+  }
+  
   let content = `
     <div class="detail-view">
       <div class="detail-header">
@@ -270,6 +386,7 @@ function showDetailedResult(item) {
           ${attrs.duration ? `<span class="meta-item">Duração: ${attrs.duration}</span>` : ''}
           ${attrs.time ? `<span class="meta-item">Tempo: ${attrs.time}</span>` : ''}
           ${attrs.dif ? `<span class="meta-item">Dificuldade: ${attrs.dif}</span>` : ''}
+          ${collegesMetaItem}
         </div>
       </div>
       

@@ -1,8 +1,8 @@
 {
   "id": "buscador-livros",
-  "title": "Buscador de livros",
+  "title": "Buscador de troços",
   "description": "Simple module to search Strapi content",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "compatibility": {
     "minimum": "11",
     "verified": "13"
